@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+import traceback
 
 from typing import Dict
 
@@ -120,7 +121,12 @@ class LogMonitor(BaseMonitor):
         self.out.term(RESET)
         self.out.write(" ")
 
-        json.dump(options, self.out, indent=2)
+        try:
+            json.dump(options, self.out, indent=2)
+        except Exception as e:
+            traceback.print_exc(file = self.out)
+            self.out.write(options)
+
         self.out.write("\n")
 
         self.timer_start = time.time()
