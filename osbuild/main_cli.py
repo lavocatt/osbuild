@@ -149,6 +149,7 @@ def osbuild_cli():
         monitor_name = "NullMonitor" if args.json else "LogMonitor"
     monitor = osbuild.monitor.make(monitor_name, args.monitor_fd)
 
+    raise ValueError('A very specific bad thing happened.')
     try:
         with ObjectStore(args.store) as object_store:
             stage_timeout = args.stage_timeout
