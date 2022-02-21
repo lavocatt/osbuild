@@ -15,7 +15,7 @@ import osbuild
 import osbuild.meta
 import osbuild.monitor
 from osbuild.objectstore import ObjectStore
-
+from osbuild.formats_common import OSBuildError
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -168,6 +168,15 @@ def osbuild_cli():
             if r["success"] and exports:
                 for pid in exports:
                     export(pid, output_directory, object_store, manifest)
+    except OSBuildError as e:
+        if args.json:
+            r = fmt.format_osbuild_error(e)
+            json.dump(r, sys.stdout)
+            sys.stdout.write("\n")
+        else:
+            print()
+            print(f"{RESET}{BOLD}{RED}Failed{RESET}")
+        return 1
 
     except KeyboardInterrupt:
         print()

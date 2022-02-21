@@ -10,9 +10,10 @@ gpg keys are provided via `gpgkeys`.
 import os
 import sys
 import subprocess
+from subprocess import CalledProcessError
 import uuid
 
-from osbuild import sources
+from osbuild.sources import SourceService, SourceError, SourceErrorKind
 
 
 SCHEMA = """
@@ -74,7 +75,7 @@ def ostree(*args, _input=None, **kwargs):
                    check=True)
 
 
-def download(items, cache):
+def download(items, cache, errors_callback):
     # Prepare the cache and the output repo
     repo_cache = os.path.join(cache, "repo")
     ostree("init", mode="archive", repo=repo_cache)
@@ -90,35 +91,49 @@ def download(items, cache):
         gpg = remote.get("gpgkeys", [])
         uid = str(uuid.uuid4())
 
-        verify_args = []
-        if not gpg:
-            verify_args = ["--no-gpg-verify"]
+        error_kind = SourceErrorKind.UNKNOWN
+        try:
+            verify_args = []
+            if not gpg:
+                verify_args = ["--no-gpg-verify"]
 
-        ostree("remote", "add",
-               uid, url,
-               *verify_args,
-               repo=repo_cache)
+            error_kind = SourceErrorKind.OSTREE_REMOTE_ADD
 
-        for key in gpg:
-            ostree("remote", "gpg-import", "--stdin", uid,
-                   repo=repo_cache, _input=key)
+            ostree("remote", "add",
+                   uid, url,
+                   *verify_args,
+                   repo=repo_cache)
 
-        # Transfer the commit: remote → cache
-        print(f"pulling {commit}", file=sys.stderr)
-        ostree("pull", uid, commit, repo=repo_cache)
+            error_kind = SourceErrorKind.OSTREE_GPG_IMPORT
 
-        # Remove the temporary remotes again
-        ostree("remote", "delete", uid,
-               repo=repo_cache)
+            for key in gpg:
+                ostree("remote", "gpg-import", "--stdin", uid,
+                       repo=repo_cache, _input=key)
+
+            error_kind = SourceErrorKind.OSTREE_PULL
+
+            # Transfer the commit: remote → cache
+            print(f"pulling {commit}", file=sys.stderr)
+            ostree("pull", uid, commit, repo=repo_cache)
+
+            error_kind = SourceErrorKind.OSTREE_REMOTE_DELETE
+
+            # Remove the temporary remotes again
+            ostree("remote", "delete", uid, repo=repo_cache)
+
+            error_kind = SourceErrorKind.UNKNOWN
+
+        except CalledProcessError as e:
+            errors_callback(SourceError(error_kind, str(e), f"{commit}@{url} {remote}"))
 
 
-class OSTreeSource(sources.SourceService):
+class OSTreeSource(SourceService):
 
     def download(self, items, cache, _options):
         cache = os.path.join(cache, "org.osbuild.ostree")
         os.makedirs(cache, exist_ok=True)
 
-        download(items, cache)
+        download(items, cache, self.signal_error)
 
 
 def main():

@@ -10,6 +10,7 @@ to fetch resources.
 from typing import Dict
 from osbuild.meta import Index, ValidationResult
 from ..pipeline import Manifest, Pipeline, detect_host_runner
+from ..formats_common import OSBuildError
 
 
 VERSION = "1"
@@ -285,3 +286,7 @@ def validate(manifest: Dict, index: Index) -> ValidationResult:
         result.merge(res, path=["sources", name])
 
     return result
+
+
+def format_osbuild_error(error: OSBuildError):
+    return error.format()

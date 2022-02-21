@@ -20,10 +20,9 @@ import subprocess
 import sys
 import tempfile
 
-from osbuild import sources
-
 from osbuild.util.checksum import verify_file
 from osbuild.util.rhsm import Subscriptions
+from osbuild.sources import SourceService, SourceError, SourceErrorKind
 
 
 SCHEMA = """
@@ -83,6 +82,104 @@ SCHEMA = """
 """
 
 
+CURL_CODE_MAP = {
+    # networking errors
+    5: ("Couldn't resolve proxy", SourceErrorKind.CURL_NETWORKING),
+    6: ("Couldn't resolve host", SourceErrorKind.CURL_NETWORKING),
+    7: ("Failed to connect to host", SourceErrorKind.CURL_NETWORKING),
+    8: ("Unknown FTP server response", SourceErrorKind.CURL_NETWORKING),
+    10: ("FTP accept failed", SourceErrorKind.CURL_NETWORKING),
+    11: ("FTP weird PASS reply", SourceErrorKind.CURL_NETWORKING),
+    12: ("FTP Timeout", SourceErrorKind.CURL_NETWORKING),
+    13: ("Unknown response to FTP PASV command", SourceErrorKind.CURL_NETWORKING),
+    14: ("Unknown FTP 227 format", SourceErrorKind.CURL_NETWORKING),
+    15: ("FTP cannot get host", SourceErrorKind.CURL_NETWORKING),
+    16: ("HTTP/2 error", SourceErrorKind.CURL_NETWORKING),
+    17: ("FTP could not set binary", SourceErrorKind.CURL_NETWORKING),
+    18: ("Partial file. Only a part of the file was transferred", SourceErrorKind.CURL_NETWORKING),
+    19: ("FTP could not download/access the given file", SourceErrorKind.CURL_NETWORKING),
+    22: ("HTTP page not retrieved", SourceErrorKind.CURL_NETWORKING),
+    25: ("Upload failed", SourceErrorKind.CURL_NETWORKING),
+    26: ("Read error", SourceErrorKind.CURL_NETWORKING),
+    28: ("Operation timeout", SourceErrorKind.CURL_NETWORKING),
+    30: ("FTP PORT failed", SourceErrorKind.CURL_NETWORKING),
+    31: ("FTP could not use REST", SourceErrorKind.CURL_NETWORKING),
+    33: ("HTTP range error", SourceErrorKind.CURL_NETWORKING),
+    34: ("HTTP post error", SourceErrorKind.CURL_NETWORKING),
+    36: ("Bad download resume", SourceErrorKind.CURL_NETWORKING),
+    42: ("Aborted by callback. An application told libcurl to abort the operation",
+         SourceErrorKind.CURL_INTERNAL_ERROR),
+    43: ("Bad function argument. A function was called with a bad parameter", SourceErrorKind.CURL_INTERNAL_ERROR),
+    45: ("Interface error. A specified outgoing network interface could not be used", SourceErrorKind.CURL_NETWORKING),
+    47: ("Too many redirects. When following HTTP redirects, libcurl hit the maximum number set",
+         SourceErrorKind.CURL_NETWORKING),
+    52: ("The server did not reply anything", SourceErrorKind.CURL_NETWORKING),
+    55: ("Failed sending network data", SourceErrorKind.CURL_NETWORKING),
+    56: ("Failure in receiving network data", SourceErrorKind.CURL_NETWORKING),
+    60: ("Unrecognized transfer encoding", SourceErrorKind.CURL_NETWORKING),
+    85: ("RTSP: mismatch of CSeq numbers", SourceErrorKind.CURL_NETWORKING),
+    86: ("RTSP: mismatch of Session Identifiers", SourceErrorKind.CURL_NETWORKING),
+    89: ("No connection available, the session will be queued", SourceErrorKind.CURL_NETWORKING),
+    92: ("Stream error in HTTP/2 framing layer", SourceErrorKind.CURL_NETWORKING),
+    96: ("QUIC connection error", SourceErrorKind.CURL_NETWORKING),
+    # User input errors
+    1: ("Unsupported protocol", SourceErrorKind.CURL_BAD_INPUT),
+    3: ("URL malformed", SourceErrorKind.CURL_BAD_INPUT),
+    21: ("Quote error", SourceErrorKind.CURL_BAD_INPUT),
+    48: ("Unknown option specified to libcurl", SourceErrorKind.CURL_BAD_INPUT),
+    49: ("Malformed telnet option", SourceErrorKind.CURL_BAD_INPUT),
+    67: ("File not found on TFTP server", SourceErrorKind.CURL_BAD_INPUT),
+    77: ("The resource referenced in the URL does not exist", SourceErrorKind.CURL_BAD_INPUT),
+    # Storage errors
+    23: ("Write error. Curl could not write data to a local filesystem or similar",
+         SourceErrorKind.CURL_STORAGE),
+    37: ("Couldn't read the given file when using the FILE:// ", SourceErrorKind.CURL_STORAGE),
+    69: ("Out of disk space on TFTP server", SourceErrorKind.CURL_STORAGE),
+    # credentials errors
+    9: ("FTP access denied", SourceErrorKind.CURL_CREDENTIALS),
+    66: ("The user name, password, or similar was not accepted and curl failed to log in",
+         SourceErrorKind.CURL_CREDENTIALS),
+    68: ("Permission problem on TFTP server", SourceErrorKind.CURL_CREDENTIALS),
+    94: ("Authentication error", SourceErrorKind.CURL_CREDENTIALS),
+    # Security errors
+    35: ("A TLS/SSL connect error", SourceErrorKind.CURL_SECURITY),
+    51: ("The server's SSL/TLS certificate or SSH fingerprint failed verification", SourceErrorKind.CURL_SECURITY),
+    53: ("SSL crypto engine not found", SourceErrorKind.CURL_SECURITY),
+    54: ("Cannot set SSL crypto engine as default", SourceErrorKind.CURL_SECURITY),
+    58: ("Couldn't use the specified SSL cipher", SourceErrorKind.CURL_SECURITY),
+    59: ("Peer certificate cannot be authenticated with known CA certificates", SourceErrorKind.CURL_SECURITY),
+    63: ("Requested FTP SSL level failed", SourceErrorKind.CURL_SECURITY),
+    65: ("Failed to initialize SSL Engine", SourceErrorKind.CURL_SECURITY),
+    76: ("Problem with reading the SSL CA cert", SourceErrorKind.CURL_SECURITY),
+    79: ("Failed to shut down the SSL connection", SourceErrorKind.CURL_SECURITY),
+    82: ("Could not load CRL file, missing or wrong format", SourceErrorKind.CURL_SECURITY),
+    83: ("TLS certificate issuer check failed", SourceErrorKind.CURL_SECURITY),
+    84: ("The FTP PRET command failed", SourceErrorKind.CURL_SECURITY),
+    90: ("SSL public key does not matched pinned public key", SourceErrorKind.CURL_SECURITY),
+    91: ("Invalid SSL certificate status", SourceErrorKind.CURL_SECURITY),
+    # Internal errors
+    2: ("Failed to initialize", SourceErrorKind.CURL_INTERNAL_ERROR),
+    4: ("A feature or option that was needed to perform the desired request", SourceErrorKind.CURL_INTERNAL_ERROR),
+    27: ("Out of memory. A memory allocation request failed", SourceErrorKind.CURL_INTERNAL_ERROR),
+    38: ("LDAP cannot bind", SourceErrorKind.CURL_INTERNAL_ERROR),
+    39: ("LDAP search failed", SourceErrorKind.CURL_INTERNAL_ERROR),
+    61: ("Invalid LDAP URL", SourceErrorKind.CURL_INTERNAL_ERROR),
+    62: ("Maximum file size exceeded", SourceErrorKind.CURL_INTERNAL_ERROR),
+    64: ("Sending the data requires a rewind that failed", SourceErrorKind.CURL_INTERNAL_ERROR),
+    70: ("Illegal TFTP operation", SourceErrorKind.CURL_INTERNAL_ERROR),
+    71: ("Unknown TFTP transfer ID", SourceErrorKind.CURL_INTERNAL_ERROR),
+    72: ("File already exists (TFTP)", SourceErrorKind.CURL_INTERNAL_ERROR),
+    73: ("No such user (TFTP)", SourceErrorKind.CURL_INTERNAL_ERROR),
+    74: ("Character conversion failed", SourceErrorKind.CURL_INTERNAL_ERROR),
+    75: ("Character conversion functions required", SourceErrorKind.CURL_INTERNAL_ERROR),
+    78: ("An unspecified error occurred during the SSH session", SourceErrorKind.CURL_INTERNAL_ERROR),
+    87: ("Unable to parse FTP file list", SourceErrorKind.CURL_INTERNAL_ERROR),
+    88: ("FTP chunk callback reported error", SourceErrorKind.CURL_INTERNAL_ERROR),
+    93: ("An API function was called from inside a callback", SourceErrorKind.CURL_INTERNAL_ERROR),
+    95: ("HTTP/3 layer error", SourceErrorKind.CURL_INTERNAL_ERROR)
+}
+
+
 def fetch(url, checksum, directory):
     secrets = url.get("secrets")
     url_path = url.get("url")
@@ -117,22 +214,25 @@ def fetch(url, checksum, directory):
             if return_code == 0:
                 break
         else:
-            raise RuntimeError(f"curl: error downloading {url}: error code {return_code}")
+            err = CURL_CODE_MAP.get(return_code, [SourceErrorKind.UNKNOWN.name, SourceErrorKind.UNKNOWN])
+            raise SourceError(kind=err[1], message=err[0], source=str(url_path))
 
         if not verify_file(f"{tmpdir}/{checksum}", checksum):
-            raise RuntimeError(f"checksum mismatch: {checksum} {url}")
+            raise SourceError(kind=SourceErrorKind.CHECKSUM, message=SourceErrorKind.CHECKSUM.name, source=url_path)
 
-        # The checksum has been verified, move the file into place. in case we race
-        # another download of the same file, we simply ignore the error as their
-        # contents are guaranteed to be  the same.
+        # The checksum has been verified, move the file into place. In case
+        # we race another download of the same file, we simply ignore the
+        # error as their contents are guaranteed to be  the same.
         try:
             os.rename(f"{tmpdir}/{checksum}", f"{directory}/{checksum}")
         except FileExistsError:
             pass
 
 
-def download(items, cache):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+def download(items, cache, errors_callback):
+    # Use threads and not processes to parallelize the workers. The reason being that the type SourceError can't be
+    # serialized in between processes and thus raising this exception in the sub process makes it crash.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         requested_urls = []
         requested_checksums = []
         subscriptions = None
@@ -159,17 +259,20 @@ def download(items, cache):
 
         results = executor.map(fetch, requested_urls, requested_checksums, itertools.repeat(cache))
 
-        for _ in results:
-            pass
+        try:
+            for _ in results:
+                pass
+        except SourceError as e:
+            errors_callback(e)
 
 
-class CurlSource(sources.SourceService):
+class CurlSource(SourceService):
 
     def download(self, items, cache, _options):
         cache = os.path.join(cache, "org.osbuild.files")
         os.makedirs(cache, exist_ok=True)
 
-        download(items, cache)
+        download(items, cache, self.signal_error)
 
 
 def main():

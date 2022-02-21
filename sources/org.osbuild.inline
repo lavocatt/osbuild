@@ -19,8 +19,8 @@ import tempfile
 
 from typing import Dict
 
-from osbuild import sources
 from osbuild.util.checksum import verify_file
+from osbuild.sources import SourceService, SourceError, SourceErrorKind
 
 
 SCHEMA = """
@@ -56,7 +56,8 @@ SCHEMA = """
 """
 
 
-def process(items: Dict, cache: str, tmpdir):
+#pylint: disable=inconsistent-return-statements
+def process(items: Dict, cache: str, tmpdir, errors_callback):
     for checksum, item in items.items():
         target = os.path.join(cache, checksum)
         floating = os.path.join(tmpdir, checksum)
@@ -73,20 +74,23 @@ def process(items: Dict, cache: str, tmpdir):
             f.write(data)
 
         if not verify_file(floating, checksum):
-            raise RuntimeError("Checksum mismatch for {}".format(checksum))
+            return errors_callback(
+                SourceError(kind=SourceErrorKind.CHECKSUM,
+                            message=f"Checksum mismatch for {checksum}",
+                            source=str(checksum)))
 
         with contextlib.suppress(FileExistsError):
             os.rename(floating, target)
 
 
-class InlineSource(sources.SourceService):
+class InlineSource(SourceService):
 
     def download(self, items, cache, _options):
         cache = os.path.join(cache, "org.osbuild.files")
         os.makedirs(cache, exist_ok=True)
 
         with tempfile.TemporaryDirectory(prefix=".unverified-", dir=cache) as tmpdir:
-            process(items, cache, tmpdir)
+            process(items, cache, tmpdir, self.signal_error)
 
 
 def main():

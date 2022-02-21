@@ -7,6 +7,7 @@ from osbuild.meta import Index, ModuleInfo, ValidationResult
 from ..inputs import Input
 from ..pipeline import Manifest, Pipeline, Stage, detect_host_runner
 from ..sources import Source
+from ..formats_common import OSBuildError
 
 
 VERSION = "2"
@@ -493,3 +494,7 @@ def validate(manifest: Dict, index: Index) -> ValidationResult:
         validate_pipeline(pipeline, path=["pipelines", i])
 
     return result
+
+
+def format_osbuild_error(error: OSBuildError):
+    return error.format()
