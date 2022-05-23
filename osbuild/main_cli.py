@@ -102,10 +102,19 @@ def osbuild_cli():
     if not info:
         print("Unsupported manifest format")
         return 2
-    fmt = info.module
+    if "IN" not in info.format_kind:
+        print("Manifest format can't parse input manifest")
+        return 2
+    mfst_fmt = info.module
+
+    # detect the result format
+    rslt_fmt = index.get_result_fmt(info, "legacy_json" if args.json else "legacy_text")
+    if not rslt_fmt:
+        print("Unsupported result format")
+        return 2
 
     # first thing is validation of the manifest
-    res = fmt.validate(desc, index)
+    res = mfst_fmt.validate(desc, index)
     if not res:
         if args.json or args.inspect:
             json.dump(res.as_dict(), sys.stdout)
@@ -114,7 +123,7 @@ def osbuild_cli():
             show_validation(res, args.manifest_path)
         return 2
 
-    manifest = fmt.load(desc, index)
+    manifest = mfst_fmt.load(desc, index)
 
     exports = set(args.export)
     unresolved = [e for e in exports if e not in manifest]
@@ -133,7 +142,7 @@ def osbuild_cli():
             return 1
 
     if args.inspect:
-        result = fmt.describe(manifest, with_id=True)
+        result = mfst_fmt.describe(manifest, with_id=True)
         json.dump(result, sys.stdout)
         sys.stdout.write("\n")
         return 0
@@ -174,16 +183,5 @@ def osbuild_cli():
         print(f"{RESET}{BOLD}{RED}Aborted{RESET}")
         return 130
 
-    if args.json:
-        r = fmt.output(manifest, r)
-        json.dump(r, sys.stdout)
-        sys.stdout.write("\n")
-    else:
-        if r["success"]:
-            for name, pl in manifest.pipelines.items():
-                print(f"{name + ':': <10}\t{pl.id}")
-        else:
-            print()
-            print(f"{RESET}{BOLD}{RED}Failed{RESET}")
-
+    rslt_fmt.print_result(manifest, r, info)
     return 0 if r["success"] else 1

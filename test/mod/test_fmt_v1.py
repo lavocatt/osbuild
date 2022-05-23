@@ -203,6 +203,8 @@ class TestFormatV1(unittest.TestCase):
                 ]
             }
         }
+        info = index.detect_format_info({"version": "1"})
+        rslt_fmt = index.get_result_fmt(info, "legacy_json")
 
         manifest = fmt.load(description, index)
         self.assertIsNotNone(manifest)
@@ -211,7 +213,7 @@ class TestFormatV1(unittest.TestCase):
             res = self.build_manifest(manifest, tmpdir)
 
         self.assertIsNotNone(res)
-        result = fmt.output(manifest, res)
+        result = rslt_fmt.output(manifest, res, info)
         self.assertIsNotNone(result)
         self.assertIn("success", result)
         self.assertFalse(result["success"])
@@ -249,7 +251,7 @@ class TestFormatV1(unittest.TestCase):
             res = self.build_manifest(manifest, tmpdir)
 
         self.assertIsNotNone(res)
-        result = fmt.output(manifest, res)
+        result = rslt_fmt.output(manifest, res, info)
         self.assertIsNotNone(result)
         self.assertIn("success", result)
         self.assertFalse(result["success"])
@@ -279,7 +281,7 @@ class TestFormatV1(unittest.TestCase):
             res = self.build_manifest(manifest, tmpdir)
 
         self.assertIsNotNone(res)
-        result = fmt.output(manifest, res)
+        result = rslt_fmt.output(manifest, res, info)
         self.assertIsNotNone(result)
 
         self.assertIn("assembler", result)
@@ -311,7 +313,7 @@ class TestFormatV1(unittest.TestCase):
             res = self.build_manifest(manifest, tmpdir)
 
         self.assertIsNotNone(res)
-        result = fmt.output(manifest, res)
+        result = rslt_fmt.output(manifest, res, info)
         self.assertIsNotNone(result)
 
         self.assertIn("stages", result)

@@ -465,6 +465,8 @@ class FormatInfo:
     def __init__(self, module):
         self.module = module
         self.version = getattr(module, "VERSION")
+        self.compatible_result_formats = getattr(module, "COMPATIBLE_RESULT_FORMATS")
+        self.format_kind = getattr(module, "FORMAT_KIND")
         docs = getattr(module, "__doc__")
         info, desc = docs.split("\n", 1)
         self.info = info.strip()
@@ -514,15 +516,17 @@ class Index:
             self._format_info[name] = info
         return info
 
-    def detect_format_info(self, data) -> Optional[FormatInfo]:
-        """Obtain a `FormatInfo` for the format that can handle `data`"""
+    def _detect_format_info(self, version):
         formats = self.list_formats()
-        version = data.get("version", "1")
         for fmt in formats:
             info = self.get_format_info(fmt)
             if info.version == version:
                 return info
         return None
+
+    def detect_format_info(self, data) -> Optional[FormatInfo]:
+        """Obtain a `FormatInfo` for the format that can handle `data`"""
+        return self._detect_format_info(data.get("version", "1"))
 
     def list_modules_for_class(self, klass: str) -> List[str]:
         """List all available modules for the given `klass`"""
@@ -575,3 +579,11 @@ class Index:
         self._schemata[(klass, name, version)] = schema
 
         return schema
+
+    def get_result_fmt(self, info, result_format):
+        if result_format not in info.compatible_result_formats:
+            return None
+        out_info = self._detect_format_info(result_format)
+        if "OUT" not in out_info.format_kind:
+            return None
+        return out_info.module
