@@ -33,24 +33,6 @@ def parse_manifest(path):
     return manifest
 
 
-def show_validation(result, name):
-    if name == "-":
-        name = "<stdin>"
-
-    print(f"{BOLD}{name}{RESET} ", end='')
-
-    if result:
-        print(f"is {BOLD}{GREEN}valid{RESET}")
-        return
-
-    print(f"has {BOLD}{RED}errors{RESET}:")
-    print("")
-
-    for error in result:
-        print(f"{BOLD}{error.id}{RESET}:")
-        print(f"  {error.message}\n")
-
-
 def export(name_or_id, output_directory, store, manifest):
     pipeline = manifest[name_or_id]
     obj = store.get(pipeline.id)
@@ -108,7 +90,7 @@ def osbuild_cli():
     mfst_fmt = info.module
 
     # detect the result format
-    rslt_fmt = index.get_result_fmt(info, "legacy_json" if args.json else "legacy_text")
+    rslt_fmt = index.get_result_fmt(info, "legacy" if args.json else "text")
     if not rslt_fmt:
         print("Unsupported result format")
         return 2
@@ -116,11 +98,10 @@ def osbuild_cli():
     # first thing is validation of the manifest
     res = mfst_fmt.validate(desc, index)
     if not res:
-        if args.json or args.inspect:
-            json.dump(res.as_dict(), sys.stdout)
-            sys.stdout.write("\n")
+        if args.inspect:
+            rslt_fmt.inspect(res)
         else:
-            show_validation(res, args.manifest_path)
+            rslt_fmt.print_validation_result(res, args.manifest_path)
         return 2
 
     manifest = mfst_fmt.load(desc, index)
@@ -128,29 +109,23 @@ def osbuild_cli():
     exports = set(args.export)
     unresolved = [e for e in exports if e not in manifest]
     if unresolved:
-        for name in unresolved:
-            print(f"Export {BOLD}{name}{RESET} not found!")
-        print(f"{RESET}{BOLD}{RED}Failed{RESET}")
+        rslt_fmt.print_export_error(unresolved, args.json)
         return 1
 
     if args.checkpoint:
         missed = manifest.mark_checkpoints(args.checkpoint)
         if missed:
-            for checkpoint in missed:
-                print(f"Checkpoint {BOLD}{checkpoint}{RESET} not found!")
-            print(f"{RESET}{BOLD}{RED}Failed{RESET}")
+            rslt_fmt.print_checkpoint_error(missed, args.json)
             return 1
 
     if args.inspect:
-        result = mfst_fmt.describe(manifest, with_id=True)
-        json.dump(result, sys.stdout)
-        sys.stdout.write("\n")
+        rslt_fmt.print_description(mfst_fmt.describe(manifest, with_id=True))
         return 0
 
     output_directory = args.output_directory
 
     if exports and not output_directory:
-        print("Need --output-directory for --export")
+        rslt_fmt.print_export_config_error(args.json)
         return 1
 
     monitor_name = args.monitor
@@ -179,8 +154,7 @@ def osbuild_cli():
                     export(pid, output_directory, object_store, manifest)
 
     except KeyboardInterrupt:
-        print()
-        print(f"{RESET}{BOLD}{RED}Aborted{RESET}")
+        rslt_fmt.print_aborted_error(args.json)
         return 130
 
     rslt_fmt.print_result(manifest, r, info)

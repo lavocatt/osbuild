@@ -136,6 +136,49 @@ def output(manifest: Manifest, res: Dict, info) -> Dict:
     return output_v2(manifest, res)
 
 
+def print_text_error(error: str):
+    print(f"{RESET}{BOLD}{RED}{error}{RESET}")
+
+
 def print_result(manifest: Manifest, res: Dict, info) -> Dict:
     json.dump(output(manifest, res, info), sys.stdout)
     sys.stdout.write("\n")
+
+
+def inspect(result, _name):
+    json.dump(result.as_dict(), sys.stdout)
+    sys.stdout.write("\n")
+
+
+def print_validation_result(result, name):
+    return inspect(result, name)
+
+
+def print_export_error(unresolved):
+    # /!\ In legacy.py, there's a mix of text and json output
+    for name in unresolved:
+        print(f"Export {BOLD}{name}{RESET} not found!")
+    print_text_error("Failed")
+
+
+def print_checkpoint_error(missed):
+    # /!\ In legacy.py, there's a mix of text and json output
+    for checkpoint in missed:
+        print(f"Checkpoint {BOLD}{checkpoint}{RESET} not found!")
+    print_text_error("Failed")
+
+
+def print_description(description):
+    json.dump(description, sys.stdout)
+    sys.stdout.write("\n")
+
+
+def print_export_config_error():
+    # /!\ In legacy.py, there's a mix of text and json output
+    print_text_error("Need --output-directory for --export")
+
+
+def print_aborted_error():
+    # /!\ In legacy.py, there's a mix of text and json output
+    print()
+    print_text_error("Aborted")
