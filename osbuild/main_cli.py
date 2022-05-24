@@ -56,8 +56,6 @@ def parse_arguments(sys_argv):
                         help="stage to commit to the object store during build (can be passed multiple times)")
     parser.add_argument("--export", metavar="ID", action="append", type=str, default=[],
                         help="object to export, can be passed multiple times")
-    parser.add_argument("--json", action="store_true",
-                        help="output results in JSON format")
     parser.add_argument("--output-directory", metavar="DIRECTORY", type=os.path.abspath,
                         help="directory where result objects are stored")
     parser.add_argument("--inspect", action="store_true",
@@ -68,11 +66,22 @@ def parse_arguments(sys_argv):
                         help="File descriptor to be used for the monitor")
     parser.add_argument("--stage-timeout", type=int, default=None,
                         help="set the maximal time (in seconds) each stage is allowed to run")
+    parser.add_argument("--json", action="store_true", help="output results in JSON format")
+    parser.add_argument("--result-format", type=str, default="legacy", choices=["legacy"],
+                        help="choose between output formats")
 
     return parser.parse_args(sys_argv[1:])
 
 
+def parse_result_format(is_json, res_fmt):
+    suffix = "text"
+    if is_json:
+        suffix = "json"
+    return f"{res_fmt}_{suffix}"
+
 # pylint: disable=too-many-branches,too-many-return-statements,too-many-statements
+
+
 def osbuild_cli():
     args = parse_arguments(sys.argv)
     desc = parse_manifest(args.manifest_path)
@@ -90,7 +99,7 @@ def osbuild_cli():
     mfst_fmt = info.module
 
     # detect the result format
-    rslt_fmt = index.get_result_fmt(info, "legacy" if args.json else "text")
+    rslt_fmt = index.get_result_fmt(info, parse_result_format(args.json, args.result_format))
     if not rslt_fmt:
         print("Unsupported result format")
         return 2
