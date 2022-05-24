@@ -108,7 +108,7 @@ def osbuild_cli():
     res = mfst_fmt.validate(desc, index)
     if not res:
         if args.inspect:
-            rslt_fmt.inspect(res)
+            rslt_fmt.print_inspection(res)
         else:
             rslt_fmt.print_validation_result(res, args.manifest_path)
         return 2

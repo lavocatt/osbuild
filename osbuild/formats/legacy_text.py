@@ -7,7 +7,6 @@ import sys
 from typing import Dict
 from ..pipeline import Manifest
 
-
 RESET = "\033[0m"
 BOLD = "\033[1m"
 RED = "\033[31m"
@@ -18,7 +17,7 @@ VERSION = "legacy_text"
 COMPATIBLE_RESULT_FORMATS = None
 
 
-def print_text_error(error: str):
+def _print_text_error(error: str):
     print(f"{RESET}{BOLD}{RED}{error}{RESET}")
 
 
@@ -27,13 +26,11 @@ def print_result(manifest: Manifest, res: Dict, _info) -> Dict:
         for name, pl in manifest.pipelines.items():
             print(f"{name + ':': <10}\t{pl.id}")
     print()
-    print_text_error("failed")
+    _print_text_error("failed")
 
 
-def inspect(result, _name):
-    # /!\ This should not exist in text.py as this function prints json. We should have a text only output for this. At
-    # least pretty print the json.
-    json.dump(result.as_dict(), sys.stdout, indent=2)
+def print_inspection(result, _name):
+    json.dump(result.as_dict(), sys.stdout, indent=2)  # pretty print the JSON
 
 
 def print_validation_result(result, name):
@@ -57,25 +54,23 @@ def print_validation_result(result, name):
 def print_export_error(unresolved):
     for name in unresolved:
         print(f"Export {BOLD}{name}{RESET} not found!")
-    print_text_error("Failed")
+    _print_text_error("Failed")
 
 
 def print_checkpoint_error(missed):
     for checkpoint in missed:
         print(f"Checkpoint {BOLD}{checkpoint}{RESET} not found!")
-    print_text_error("Failed")
+    _print_text_error("Failed")
 
 
 def print_description(description):
-    # /!\ This should not exist in text.py as this function prints json. We should have a text only output for this. At
-    # least pretty print the json.
-    json.dump(description, sys.stdout, indent=2)
+    json.dump(description, sys.stdout, indent=2)  # pretty print the JSON
 
 
 def print_export_config_error():
-    print_text_error("Need --output-directory for --export")
+    _print_text_error("Need --output-directory for --export")
 
 
 def print_aborted_error():
     print()
-    print_text_error("Aborted")
+    _print_text_error("Aborted")

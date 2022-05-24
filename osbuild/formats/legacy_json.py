@@ -1,16 +1,15 @@
 """Legacy JSON formatting for output
 
-Will output mostly json
+Will output mostly json. The text bit are taken directly from legacy_json
 """
 import json
 import sys
 from typing import Dict
 from ..pipeline import Manifest
-
-RESET = "\033[0m"
-BOLD = "\033[1m"
-RED = "\033[31m"
-GREEN = "\033[32m"
+from .legacy_text import print_export_error as t_print_export_error
+from .legacy_text import print_checkpoint_error as t_print_checkpoint_error
+from .legacy_text import print_export_config_error as t_print_export_config_error
+from .legacy_text import print_aborted_error as t_print_aborted_error
 
 FORMAT_KIND = ["OUT"]
 VERSION = "legacy_json"
@@ -136,36 +135,26 @@ def output(manifest: Manifest, res: Dict, info) -> Dict:
     return output_v2(manifest, res)
 
 
-def print_text_error(error: str):
-    print(f"{RESET}{BOLD}{RED}{error}{RESET}")
-
-
 def print_result(manifest: Manifest, res: Dict, info) -> Dict:
     json.dump(output(manifest, res, info), sys.stdout)
     sys.stdout.write("\n")
 
 
-def inspect(result, _name):
+def print_inspection(result, _name):
     json.dump(result.as_dict(), sys.stdout)
     sys.stdout.write("\n")
 
 
 def print_validation_result(result, name):
-    return inspect(result, name)
+    return print_inspection(result, name)
 
 
 def print_export_error(unresolved):
-    # /!\ In legacy.py, there's a mix of text and json output
-    for name in unresolved:
-        print(f"Export {BOLD}{name}{RESET} not found!")
-    print_text_error("Failed")
+    t_print_export_error(unresolved)
 
 
 def print_checkpoint_error(missed):
-    # /!\ In legacy.py, there's a mix of text and json output
-    for checkpoint in missed:
-        print(f"Checkpoint {BOLD}{checkpoint}{RESET} not found!")
-    print_text_error("Failed")
+    t_print_checkpoint_error(missed)
 
 
 def print_description(description):
@@ -174,11 +163,8 @@ def print_description(description):
 
 
 def print_export_config_error():
-    # /!\ In legacy.py, there's a mix of text and json output
-    print_text_error("Need --output-directory for --export")
+    t_print_export_config_error()
 
 
 def print_aborted_error():
-    # /!\ In legacy.py, there's a mix of text and json output
-    print()
-    print_text_error("Aborted")
+    t_print_aborted_error()
